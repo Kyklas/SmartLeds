@@ -78,7 +78,7 @@ union RmtPulsePair {
 };
 
 static const int DIVIDER = 4; // 8 still seems to work, but timings become marginal
-static const int MAX_PULSES = 64; // A channel has a 64 "pulse" buffer - we use half per pass
+static const int MAX_PULSES = 32; // A channel has a 64 "pulse" buffer - we use half per pass
 static const double RMT_DURATION_NS = 12.5; // minimum time of a single RMT duration based on clock ns
 
 } // namespace detail
@@ -169,7 +169,7 @@ private:
         RMT.apb_conf.fifo_mask = 1;  //enable memory access, instead of FIFO mode.
         RMT.apb_conf.mem_tx_wrap_en = 1; //wrap around when hitting end of buffer
         RMT.conf_ch[ channel ].conf0.div_cnt = detail::DIVIDER;
-        RMT.conf_ch[ channel ].conf0.mem_size = 2;
+        RMT.conf_ch[ channel ].conf0.mem_size = 1;
         RMT.conf_ch[ channel ].conf0.carrier_en = 0;
         RMT.conf_ch[ channel ].conf0.carrier_out_lv = 1;
         RMT.conf_ch[ channel ].conf0.mem_pd = 0;
@@ -203,14 +203,14 @@ private:
 
     void copyRmtHalfBlock() {
     	digitalWrite(_halfIdx?26:33,1);
-        int offset = 0 ;// detail::MAX_PULSES * _halfIdx;
+        int offset = detail::MAX_PULSES * _halfIdx;
 
         int len = 3 - _componentPosition + 3 * ( _count - 1 );
         len = std::min( len, detail::MAX_PULSES / 8 );
 
         if ( !len ) {
             for ( int i = 0; i < detail::MAX_PULSES; i++) {
-                RMTMEM.chan[_channel + _halfIdx].data32[i + offset].val = 0;
+                RMTMEM.chan[_channel].data32[i + offset].val = 0;
             }
         }
 
@@ -220,10 +220,10 @@ private:
             for ( int j = 0; j != 8; j++, val <<= 1 ) {
                 int bit = val >> 7;
                 int idx = i * 8 + offset + j;
-                RMTMEM.chan[ _channel + _halfIdx ].data32[ idx ].val = _bitToRmt[ bit & 0x01 ].value;
+                RMTMEM.chan[ _channel ].data32[ idx ].val = _bitToRmt[ bit & 0x01 ].value;
             }
             if ( _pixelPosition == _count - 1 && _componentPosition == 2 ) {
-                RMTMEM.chan[ _channel + _halfIdx  ].data32[ i * 8 + offset + 7 ].duration1 =
+                RMTMEM.chan[ _channel ].data32[ i * 8 + offset + 7 ].duration1 =
                     _timing.TRS / ( detail::RMT_DURATION_NS * detail::DIVIDER );
             }
 
@@ -235,7 +235,7 @@ private:
         }
 
         for ( i *= 8; i != detail::MAX_PULSES; i++ ) {
-            RMTMEM.chan[ _channel + _halfIdx ].data32[ i + offset ].val = 0;
+            RMTMEM.chan[ _channel ].data32[ i + offset ].val = 0;
         }
         digitalWrite(_halfIdx?26:33,0);
         _halfIdx = !_halfIdx;
