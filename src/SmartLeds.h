@@ -111,6 +111,18 @@ public:
         PIN_FUNC_SELECT( GPIO_PIN_MUX_REG[ pin ], 2 );
         gpio_set_direction( static_cast< gpio_num_t >( pin ), GPIO_MODE_OUTPUT );
         gpio_matrix_out( static_cast< gpio_num_t >( pin ), RMT_SIG_OUT0_IDX + _channel, 0, 0 );
+
+#if 1
+
+        PIN_FUNC_SELECT( GPIO_PIN_MUX_REG[ 22 ], 2 );
+           gpio_set_direction( static_cast< gpio_num_t >( 22 ), GPIO_MODE_OUTPUT );
+           gpio_matrix_out( static_cast< gpio_num_t >( 22 ), RMT_SIG_OUT0_IDX + _channel, 0, 0 );
+
+           PIN_FUNC_SELECT( GPIO_PIN_MUX_REG[ 23 ], 2 );
+              gpio_set_direction( static_cast< gpio_num_t >( 23 ), GPIO_MODE_OUTPUT );
+              gpio_matrix_out( static_cast< gpio_num_t >( 23 ), RMT_SIG_OUT0_IDX + _channel, 0, 0 );
+#endif
+
         initChannel( _channel );
 
         RMT.tx_lim_ch[ _channel ].limit = detail::MAX_PULSES;
