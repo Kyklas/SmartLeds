@@ -128,9 +128,23 @@ public:
         _bitToRmt[ 1 ].duration1 = _timing.T1L / ( detail::RMT_DURATION_NS * detail::DIVIDER );
 
         if ( !anyAlive() )
-            esp_intr_alloc( ETS_RMT_INTR_SOURCE, 0, interruptHandler, nullptr, &_interruptHandle );
+        {
+        	int flag = ESP_INTR_FLAG_LEVEL3;
+        	esp_err_t status;
+        	flag_try:
+        	status = esp_intr_alloc( ETS_RMT_INTR_SOURCE, flag, interruptHandler, nullptr, &_interruptHandle );
+        	if(status != ESP_OK)
+        	{
+        		ESP_LOGE("SmartLED", "Failed to set Interrupt %X",flag);
+        		flag >>=1;
+        		goto flag_try;
+        	}
+        }
+
 
         ledForChannel( channel ) = this;
+        // Make sure the default is finished
+       // xSemaphoreGive(_finishedFlag);
     }
 
     ~SmartLed() {
