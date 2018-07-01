@@ -34,6 +34,15 @@
 
 #include "SmartLeds.h"
 
+namespace detail {
+
+
+ const int DIVIDER = 4; // 8 still seems to work, but timings become marginal
+ const int MAX_PULSES = 192; // A channel has a 64 "pulse" buffer - we use half per pass
+ const double RMT_DURATION_NS = 12.5; // minimum time of a single RMT duration based on clock ns
+
+} // namespace detail
+
 
 
 void SmartLed::copyRmtHalfBlock() {

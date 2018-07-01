@@ -77,9 +77,9 @@ union RmtPulsePair {
     uint32_t value;
 };
 
-static const int DIVIDER = 4; // 8 still seems to work, but timings become marginal
-static const int MAX_PULSES = 64; // A channel has a 64 "pulse" buffer - we use half per pass
-static const double RMT_DURATION_NS = 12.5; // minimum time of a single RMT duration based on clock ns
+extern const int DIVIDER; // 8 still seems to work, but timings become marginal
+extern const int MAX_PULSES; // A channel has a 64 "pulse" buffer - we use half per pass
+extern const double RMT_DURATION_NS; // minimum time of a single RMT duration based on clock ns
 
 } // namespace detail
 
@@ -163,7 +163,7 @@ private:
         RMT.apb_conf.fifo_mask = 1;  //enable memory access, instead of FIFO mode.
         RMT.apb_conf.mem_tx_wrap_en = 1; //wrap around when hitting end of buffer
         RMT.conf_ch[ channel ].conf0.div_cnt = detail::DIVIDER;
-        RMT.conf_ch[ channel ].conf0.mem_size = 2;
+        RMT.conf_ch[ channel ].conf0.mem_size = ((detail::MAX_PULSES*2) / 64);
         RMT.conf_ch[ channel ].conf0.carrier_en = 0;
         RMT.conf_ch[ channel ].conf0.carrier_out_lv = 1;
         RMT.conf_ch[ channel ].conf0.mem_pd = 0;
