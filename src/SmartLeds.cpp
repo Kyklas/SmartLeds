@@ -37,7 +37,6 @@
 
 
 void SmartLed::copyRmtHalfBlock() {
-        int offset = 0 ;// detail::MAX_PULSES * _halfIdx;
         int len = 3 - _componentPosition + 3 * ( _count - 1 );
         len = std::min( len, detail::MAX_PULSES / 8 );
 
@@ -45,25 +44,32 @@ void SmartLed::copyRmtHalfBlock() {
         uint32_t * RMTMEM_data32_val = (uint32_t *) &RMTMEM;
 
 #define RMTMEM_IDX_CHK(idx)	((idx)<512?(idx):511)
-#define RMTMEM_IDX(channel,idx)	( (channel*64) + idx)
+#define RMTMEM_IDX(channel,idx)	RMTMEM_IDX_CHK( (channel*64) + idx)
 
         if ( !len ) {
             for ( int i = 0; i < detail::MAX_PULSES; i++) {
-                RMTMEM.chan[_channel + _halfIdx].data32[i + offset].val = 0;
+                RMTMEM_data32_val[ RMTMEM_IDX(_channel,_halfIdx*detail::MAX_PULSES + i) ] = 0;
             }
         }
 
-        int i;
-        for ( i = 0; i != len && _pixelPosition != _count; i++ ) {
-            uint8_t val = _buffer[ _pixelPosition ].getGrb( _componentPosition );
-            for ( int j = 0; j != 8; j++, val <<= 1 ) {
-                int bit = val >> 7;
-                int idx = i * 8 + offset + j;
-                RMTMEM.chan[ _channel + _halfIdx ].data32[ idx ].val = _bitToRmt[ bit & 0x01 ].value;
+        int idx_pxl;
+        for ( idx_pxl = 0; idx_pxl != len && _pixelPosition != _count; idx_pxl++ )
+        {
+            uint8_t pxl_cpnt_val = _buffer[ _pixelPosition ].getGrb( _componentPosition );
+            for ( int idx_pxl_cpnt_bit = 0; idx_pxl_cpnt_bit != 8; idx_pxl_cpnt_bit++, pxl_cpnt_val <<= 1 )
+            {
+                RMTMEM_data32_val[ RMTMEM_IDX(_channel,_halfIdx*detail::MAX_PULSES + idx_pxl * 8 + idx_pxl_cpnt_bit ) ] = _bitToRmt[ !!(pxl_cpnt_val & 0x80) ].value;;
             }
-            if ( _pixelPosition == _count - 1 && _componentPosition == 2 ) {
-                RMTMEM.chan[ _channel + _halfIdx  ].data32[ i * 8 + offset + 7 ].duration1 =
-                    _timing.TRS / ( detail::RMT_DURATION_NS * detail::DIVIDER );
+            if ( _pixelPosition == _count - 1 && _componentPosition == 2 )
+            {
+            	// Last shape in the transfer
+            	((rmt_item32_t*) &RMTMEM_data32_val[ RMTMEM_IDX(_channel,_halfIdx*detail::MAX_PULSES + idx_pxl * 8 + 7 ) ] )->duration1 =
+                        _timing.TRS / ( detail::RMT_DURATION_NS * detail::DIVIDER );
+
+//            	// Pulse following the last
+//            	RMTMEM_data32_val[ RMTMEM_IDX(_channel,_halfIdx*detail::MAX_PULSES + idx_pxl * 8 + 8 ) ] = 0;
+//            	// The first pulse of the channel
+//            	RMTMEM_data32_val[ RMTMEM_IDX(_channel, 0 ) ] = 0;
             }
 
             _componentPosition++;
@@ -73,8 +79,8 @@ void SmartLed::copyRmtHalfBlock() {
             }
         }
 
-        for ( i *= 8; i != detail::MAX_PULSES; i++ ) {
-            RMTMEM.chan[ _channel + _halfIdx ].data32[ i + offset ].val = 0;
+        for ( idx_pxl *= 8; idx_pxl != detail::MAX_PULSES; idx_pxl++ ) {
+        	RMTMEM_data32_val[ RMTMEM_IDX(_channel,_halfIdx*detail::MAX_PULSES + idx_pxl ) ] = 0;
         }
         _halfIdx = !_halfIdx;
     }
