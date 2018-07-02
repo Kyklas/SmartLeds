@@ -434,7 +434,7 @@ public:
 
      void initSPI() {
 
-    	 ESP_LOGI("WS2812B LED", "initSPI ... \n");
+    	 ESP_LOGI("WS2812B LED", "WS2812B initSPI on pin %d ... \n",_pin);
 
          spi_bus_config_t buscfg;
          memset( &buscfg, 0, sizeof( buscfg ) );
