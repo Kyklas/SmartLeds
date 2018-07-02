@@ -363,3 +363,187 @@ private:
     uint32_t _initFrame;
     uint32_t _finalFrame[ FINAL_FRAME_SIZE ];
 };
+
+
+#define WS2812B_SHAPE_HI	0xC
+#define WS2812B_SHAPE_LOW	0x8
+
+/*
+ * Combination of 2 shape in one 8bit word sent via SPI
+ */
+typedef struct {
+	uint8_t shape1 : 4 ;
+	uint8_t shape2 : 4 ;
+} ws2812b_2shapes;
+
+/*
+ * WS2812B is controled with 24 shapes for the 24 RGB bits
+ * 3 color component of 8 shape, 4 time 2 shapes
+ */
+typedef struct {
+	ws2812b_2shapes data[3][4];
+}ws2812b_pxl;
+
+class WS2812B {
+public:
+	WS2812B( int count, int pin )
+        : _count( count ),
+		  _pin(pin),
+          _firstBuffer( new Rgb[ count ] ),
+          _secondBuffer( nullptr ),
+		  _buffer(NULL),
+		  _xfer_buffer( new ws2812b_pxl[ count ] )
+    {
+		 memset( &_spi, 0, sizeof( _spi ) );
+    }
+
+    ~WS2812B() {
+    	// todo
+    }
+
+    Rgb& operator[]( int idx ) {
+        return _firstBuffer[ idx ];
+    }
+
+    const Rgb& operator[]( int idx ) const {
+        return _firstBuffer[ idx ];
+    }
+
+    void show() {
+        _buffer = _firstBuffer.get();
+        startTransmission();
+        swapBuffers();
+    }
+
+    bool isReady()
+    {
+    	bool Ready = xSemaphoreTake( _ReadyFlag, 0 );
+    	if(Ready)
+            xSemaphoreGive( _ReadyFlag );
+
+    	return Ready;
+    }
+
+    void wait() {
+    	// Wait to take
+        xSemaphoreTake( _ReadyFlag, portMAX_DELAY );
+        // Give back
+        xSemaphoreGive( _ReadyFlag );
+
+    }
+
+     void initSPI() {
+
+    	 ESP_LOGI("WS2812B LED", "initSPI ... \n");
+
+         spi_bus_config_t buscfg;
+         memset( &buscfg, 0, sizeof( buscfg ) );
+         buscfg.mosi_io_num = _pin;
+         buscfg.miso_io_num = -1;
+         buscfg.sclk_io_num = -1;
+         buscfg.quadwp_io_num = -1;
+         buscfg.quadhd_io_num = -1;
+         buscfg.max_transfer_sz = 65535;
+
+         spi_device_interface_config_t devcfg;
+         memset( &devcfg, 0, sizeof( devcfg ) );
+         devcfg.clock_speed_hz = 3200000;
+         devcfg.mode=0;
+         devcfg.spics_io_num = -1;
+         devcfg.queue_size = 2;
+         devcfg.pre_cb = nullptr;
+         devcfg.post_cb = WS2812B::Xfer_complete;
+
+         auto ret=spi_bus_initialize( HSPI_HOST, &buscfg, 1 );
+         assert(ret==ESP_OK);
+
+         ret=spi_bus_add_device( HSPI_HOST, &devcfg, &_spi );
+         assert(ret==ESP_OK);
+
+         // SPI is ready to send
+         xSemaphoreGive( _ReadyFlag );
+    }
+
+
+    static void Xfer_complete(spi_transaction_t *trans)
+    {
+    	xSemaphoreGiveFromISR( _ReadyFlag, nullptr );
+    }
+
+private:
+
+    void swapBuffers() {
+        if ( _secondBuffer )
+            _firstBuffer.swap( _secondBuffer );
+    }
+
+    void generateshapes()
+    {
+    	// transfer pxl to pxl shape
+    	for(int idx_pxl=0; idx_pxl < _count; idx_pxl++)
+    	{
+    		for(int id_pxl_cpnt=0;id_pxl_cpnt<3;id_pxl_cpnt++)
+    		{
+    			uint8_t pxl_cpnt_val = _buffer[idx_pxl].getGrb(id_pxl_cpnt);
+    			for(int id_pxl_cpnt_bit=0;id_pxl_cpnt_bit<8;)
+    			{
+    				_xfer_buffer[idx_pxl].data[id_pxl_cpnt][id_pxl_cpnt_bit/2].shape2 = !!(pxl_cpnt_val&0x80)?WS2812B_SHAPE_HI:WS2812B_SHAPE_LOW;
+    				pxl_cpnt_val<<=1;
+    				_xfer_buffer[idx_pxl].data[id_pxl_cpnt][id_pxl_cpnt_bit/2].shape1 = !!(pxl_cpnt_val&0x80)?WS2812B_SHAPE_HI:WS2812B_SHAPE_LOW;
+    				pxl_cpnt_val<<=1;
+    				id_pxl_cpnt_bit+=2;
+    			}
+    		}
+    	}
+    }
+
+
+
+    void startTransmission()
+    {
+    	bool Ready = xSemaphoreTake( _ReadyFlag, 10 );
+
+    	if( Ready )
+    	{
+    		// Previous transfer has completed
+
+    		// shape buffer is available
+    		generateshapes();
+
+    		spi_transaction_t spi_xfer;
+
+    		spi_xfer.cmd = 0;
+    		spi_xfer.addr = 0;
+    		spi_xfer.flags = 0;
+    		spi_xfer.rxlength = 0;
+    		spi_xfer.rx_buffer = nullptr;
+
+    	    // Init frame
+    		spi_xfer.length = 8 * _count * sizeof(ws2812b_pxl) ;
+    		spi_xfer.tx_buffer = _xfer_buffer;
+
+    	    spi_device_queue_trans( _spi, &spi_xfer, portMAX_DELAY );
+
+    	}
+    	else
+    	{
+    		assert(Ready);
+    	}
+    }
+
+    void endTransmission() {
+        xSemaphoreGiveFromISR( _ReadyFlag, nullptr );
+    }
+
+    int _pin;
+    int _count;
+    std::unique_ptr< Rgb[] > _firstBuffer;
+    std::unique_ptr< Rgb[] > _secondBuffer;
+    Rgb *_buffer;
+    ws2812b_pxl * _xfer_buffer;
+
+    spi_device_handle_t _spi;
+
+    static xSemaphoreHandle _ReadyFlag;
+
+};
