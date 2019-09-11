@@ -28,8 +28,10 @@
  * THE SOFTWARE.
  */
 
+#ifdef __cplusplus
 #include <memory>
 #include <cassert>
+#endif
 
 #if defined ( ARDUINO )
     extern "C" { // ...someone forgot to put in the includes...
@@ -41,9 +43,10 @@
         #include "soc/rmt_struct.h"
         #include <driver/spi_master.h>
     }
-#elif defined ( ESP_PLATFORM )
+#elif defined ( ESP_PLATFORM ) || 1
     extern "C" { // ...someone forgot to put in the includes...
         #include <esp_intr.h>
+		#include <esp_log.h>
         #include <driver/gpio.h>
         #include <freertos/FreeRTOS.h>
         #include <freertos/semphr.h>
@@ -53,6 +56,7 @@
         #include <driver/spi_master.h>
     }
     #include <stdio.h>
+	#include <string.h>
 #endif
 
 #include "Color.h"
@@ -242,8 +246,11 @@ private:
 class Apa102 {
 public:
     struct ApaRgb {
+
+        uint8_t v, b, g, r;
+
         ApaRgb( uint8_t r = 0, uint8_t g = 0, uint32_t b = 0, uint32_t v = 0xFF)
-            : v( 0xE0 | v ), r( r ), g( g ), b( b )
+            : v( 0xE0 | v ), b( b ), g( g ), r( r )
         {}
 
         ApaRgb& operator=( const Rgb& o ) {
@@ -257,8 +264,6 @@ public:
             *this = Rgb{ o };
             return *this;
         }
-
-        uint8_t v, b, g, r;
     };
 
     static const int FINAL_FRAME_SIZE = 4;
@@ -535,8 +540,8 @@ private:
         xSemaphoreGiveFromISR( _ReadyFlag, nullptr );
     }
 
-    int _pin;
     int _count;
+    int _pin;
     std::unique_ptr< Rgb[] > _firstBuffer;
     std::unique_ptr< Rgb[] > _secondBuffer;
     Rgb *_buffer;
